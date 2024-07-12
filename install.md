@@ -4,8 +4,26 @@
 please refer to the [requirements.txt](requirements.txt) file.  
 recommand to use conda virtual env.  
 note that some requirements are not so strict.   
-```
-pip install -r requirements.txt 
+```bash
+# Create conda env
+conda create -n transrac python=3.8
+
+ipython kernel install --user --name=transrac
+
+# Install dependencies
+conda activate transrac
+
+pip install numpy==1.21.0
+
+conda install pytorch==1.7.0 torchvision==0.8.1 torchaudio==0.7.0 cudatoolkit=11.0 -c pytorch -c nvidia
+
+pip install dataclasses
+pip install future
+
+pip install -U openmim
+mim install mmcv-full==1.3.16
+
+pip install -r requirements.txt
 ```
 ### Enviroment
 pytorch 1.7.0  

@@ -1,0 +1,11 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# Ignore data files
+*.csv
+*.mp4
+*.pt
+*.pth
+
+# Ignore mmaction2 package (To be included locallly)
+mmaction2/
