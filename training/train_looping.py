@@ -1,4 +1,3 @@
-"""train or valid looping """
 import os
 import numpy as np
 import torch
@@ -11,9 +10,14 @@ from tools.my_tools import paint_smi_matrixs
 
 torch.manual_seed(1)  # random seed. We not yet optimization it.
 
-
 def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, inference=False, batch_size=1, lr=1e-6,
-               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False):
+               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False, use_wandb=False):
+    
+    # Initialize wandb if use_wandb is True
+    if use_wandb:
+        import wandb
+        wandb.init(project="repetitive-action-counting", entity="cares", name="TransRAC_init")
+    
     device = torch.device("cuda:" + str(device_ids[0]) if torch.cuda.is_available() else "cpu")
     currEpoch = 0
     trainloader = DataLoader(train_set, batch_size=batch_size, pin_memory=False, shuffle=True, num_workers=16)
@@ -29,19 +33,10 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
     if lastckpt is not None:
         print("loading checkpoint")
         checkpoint = torch.load(lastckpt)
-        currEpoch = checkpoint['epoch']
-        # # # load hyperparameters by pytorch
-        # # # if change model
-        # net_dict=model.state_dict()
-        # state_dict={k: v for k, v in checkpoint.items() if k in net_dict.keys()}
-        # net_dict.update(state_dict)
-        # model.load_state_dict(net_dict, strict=False)
-
-        # # # or don't change model
+        # currEpoch = checkpoint['epoch']
+        currEpoch = 0
         model.load_state_dict(checkpoint['state_dict'], strict=False)
-
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
         del checkpoint
 
     for state in optimizer.state.values():
@@ -80,7 +75,6 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                     predict_density = output
                     loss1 = lossMSE(predict_density, density)
                     loss2 = lossSL1(predict_count, count)
-                    # loss2 = lossMSE(predict_count, count)
                     loss3 = torch.sum(torch.div(torch.abs(predict_count - count), count + 1e-1)) / \
                             predict_count.flatten().shape[0]  # mae
                     loss = loss1
@@ -108,21 +102,21 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                                       'Train OBO ': OBO})
 
                     if batch_idx % 10 == 0:
-                        writer.add_scalars('train/loss',
-                                           {"loss": np.mean(trainLosses)},
-                                           epoch * len(trainloader) + batch_idx)
-                        writer.add_scalars('train/MAE',
-                                           {"MAE": np.mean(trainMAE)},
-                                           epoch * len(trainloader) + batch_idx)
-                        writer.add_scalars('train/OBO',
-                                           {"OBO": np.mean(trainOBO)},
-                                           epoch * len(trainloader) + batch_idx)
+                        writer.add_scalars('train/loss', {"loss": np.mean(trainLosses)}, epoch * len(trainloader) + batch_idx)
+                        writer.add_scalars('train/MAE', {"MAE": np.mean(trainMAE)}, epoch * len(trainloader) + batch_idx)
+                        writer.add_scalars('train/OBO', {"OBO": np.mean(trainOBO)}, epoch * len(trainloader) + batch_idx)
+                        
+                        # Log to wandb if use_wandb is True
+                        if use_wandb:
+                            wandb.log({"train/loss": np.mean(trainLosses),
+                                       "train/MAE": np.mean(trainMAE),
+                                       "train/OBO": np.mean(trainOBO)})
 
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
 
-        if valid and epoch > 50:
+        if valid and epoch % 5 == 0:
             with torch.no_grad():
                 batch_idx = 0
                 pbar = tqdm(validloader, total=len(validloader))
@@ -139,7 +133,6 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
 
                     loss1 = lossMSE(predict_density, density)
                     loss2 = lossSL1(predict_count, count)
-                    # loss2 = lossMSE(predict_count, count)
                     loss3 = torch.sum(torch.div(torch.abs(predict_count - count), count + 1e-1)) / \
                             predict_count.flatten().shape[0]  # mae
                     loss = loss1
@@ -164,13 +157,15 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                                       'Valid MAE': MAE,
                                       'Valid OBO ': OBO})
 
-                writer.add_scalars('valid/loss', {"loss": np.mean(validLosses)},
-                                   epoch)
-                writer.add_scalars('valid/OBO', {"OBO": np.mean(validOBO)},
-                                   epoch)
-                writer.add_scalars('valid/MAE',
-                                   {"MAE": np.mean(validMAE)},
-                                   epoch)
+                writer.add_scalars('valid/loss', {"loss": np.mean(validLosses)}, epoch)
+                writer.add_scalars('valid/OBO', {"OBO": np.mean(validOBO)}, epoch)
+                writer.add_scalars('valid/MAE', {"MAE": np.mean(validMAE)}, epoch)
+                
+                # Log to wandb if use_wandb is True
+                if use_wandb:
+                    wandb.log({"valid/loss": np.mean(validLosses),
+                               "valid/OBO": np.mean(validOBO),
+                               "valid/MAE": np.mean(validMAE)})
 
         scheduler.step()
         if not os.path.exists('checkpoint/{0}/'.format(ckpt_name)):
@@ -184,11 +179,27 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                     'trainLosses': trainLosses,
                     'valLosses': validLosses
                 }
-                torch.save(checkpoint,
-                           'checkpoint/{0}/'.format(ckpt_name) + str(epoch) + '_' + str(
-                               round(np.mean(validMAE), 4)) + '.pt')
+                torch.save(checkpoint, 'checkpoint/{0}/'.format(ckpt_name) + str(epoch) + '_' + str(round(np.mean(validMAE), 4)) + '.pt')
 
         writer.add_scalars('learning rate', {"learning rate": optimizer.state_dict()['param_groups'][0]['lr']}, epoch)
         writer.add_scalars('epoch_trainMAE', {"epoch_trainMAE": np.mean(trainMAE)}, epoch)
         writer.add_scalars('epoch_trainOBO', {"epoch_trainOBO": np.mean(trainOBO)}, epoch)
         writer.add_scalars('epoch_trainloss', {"epoch_trainloss": np.mean(trainLosses)}, epoch)
+        
+        # Log to wandb if use_wandb is True
+        if use_wandb:
+            wandb.log({"learning rate": optimizer.state_dict()['param_groups'][0]['lr'],
+                       "epoch_trainMAE": np.mean(trainMAE),
+                       "epoch_trainOBO": np.mean(trainOBO),
+                       "epoch_trainloss": np.mean(trainLosses)})
+
+
+
+        writer.add_scalars('learning rate', {"learning rate": optimizer.state_dict()['param_groups'][0]['lr']}, epoch)
+        writer.add_scalars('epoch_trainMAE', {"epoch_trainMAE": np.mean(trainMAE)}, epoch)
+        writer.add_scalars('epoch_trainOBO', {"epoch_trainOBO": np.mean(trainOBO)}, epoch)
+        writer.add_scalars('epoch_trainloss', {"epoch_trainloss": np.mean(trainLosses)}, epoch)
+
+    # Finish the wandb run if use_wandb is True
+    if use_wandb:
+        wandb.finish()

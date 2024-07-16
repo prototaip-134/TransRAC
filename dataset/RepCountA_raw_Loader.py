@@ -22,7 +22,19 @@ class MyData(Dataset):
         self.root_path = root_path
         self.video_path = video_path
         self.label_dir = os.path.join(root_path, label_path)
-        self.video_dir = os.listdir(os.path.join(self.root_path, self.video_path))
+        # self.video_dir = os.listdir(os.path.join(self.root_path, self.video_path))
+        
+        # Open and read the CSV file
+        self.video_dir = []
+        with open(self.label_dir, mode='r') as file:
+            # Create a CSV reader object
+            reader = csv.DictReader(file)
+            
+            # Iterate through each row in the CSV
+            for row in reader:
+                # Append the value in the 'name' column to the list
+                self.video_dir.append(row['name'])
+
         self.label_dict = get_labels_dict(self.label_dir)  # get all labels
         self.num_frame = num_frame
 
@@ -100,13 +112,37 @@ class VideoRead:
         return Frame_Tensor
 
 
+# def get_labels_dict(path):
+#     labels_dict = {}
+#     check_file_exist(path)
+#     with open(path, encoding='utf-8') as f:
+#         f_csv = csv.DictReader(f)
+#         for row in f_csv:
+#             cycle = [int(row[key]) for key in row.keys() if 'L' in key and row[key] != '']
+#             labels_dict[row['name']] = cycle
+
+#     return labels_dict
+
 def get_labels_dict(path):
     labels_dict = {}
+    
+    # Ensure the file exists (assuming this function is defined elsewhere)
     check_file_exist(path)
+    
     with open(path, encoding='utf-8') as f:
         f_csv = csv.DictReader(f)
         for row in f_csv:
-            cycle = [int(row[key]) for key in row.keys() if 'L' in key and row[key] != '']
+            # Convert values to float first, then to int
+            cycle = []
+            for key in row.keys():
+                if 'L' in key and row[key] != '':
+                    try:
+                        # Convert to float first, then to int
+                        value = float(row[key])
+                        cycle.append(int(value))
+                    except ValueError:
+                        # Handle conversion errors if needed
+                        print(f"Warning: Could not convert value '{row[key]}' to int.")
             labels_dict[row['name']] = cycle
 
     return labels_dict
