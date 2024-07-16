@@ -63,7 +63,10 @@ We introduce a novel repetition action counting dataset called RepCount that con
 ## Usage  
 ### Install 
 Please refer to [install.md](https://github.com/SvipRepetitionCounting/TransRAC/blob/main/install.md) for installation.
-
+```
+pip install -U openmim
+mim install mmcv-1.4.0
+```
 ### Data preparation
 Firstly, you should loading the pretrained model [Video Swin Transformer](https://github.com/SwinTransformer/Video-Swin-Transformer)([github](https://github.com/SwinTransformer/storage/releases/download/v1.0.4/swin_tiny_patch244_window877_kinetics400_1k.pth)) in to the folder '[pretrained](https://github.com/SvipRepetitionCounting/TransRAC/tree/main/pretrained)'.
 
