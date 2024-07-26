@@ -21,9 +21,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 root_path = os.getcwd() + '/data/'
 
 train_video_dir = 'train'
-train_label_dir = 'train_fold_1.csv'
 valid_video_dir = 'valid'
-valid_label_dir = 'valid_fold_1.csv'
 
 # please make sure the pretrained model path is correct
 checkpoint = './pretrained/swin_tiny_patch244_window877_kinetics400_1k.pth'
@@ -36,14 +34,17 @@ NUM_FRAME = 64
 # multi scales(list). we currently support 1,4,8 scale.
 SCALES = [1, 4, 8]
 
-train_dataset = MyData(root_path, train_video_dir, train_label_dir, num_frame=NUM_FRAME)
-valid_dataset = MyData(root_path, valid_video_dir, valid_label_dir, num_frame=NUM_FRAME)
-
-my_model = TransferModel(config=config, checkpoint=checkpoint, num_frames=NUM_FRAME, scales=SCALES, OPEN=False)
-NUM_EPOCHS = 200
+NUM_EPOCHS = 150
 LR = 8e-6
 BATCH_SIZE = 32
 
-train_loop(NUM_EPOCHS, my_model, train_dataset, valid_dataset, train=True, valid=True,
-           batch_size=BATCH_SIZE, lr=LR, saveckpt=True, ckpt_name='ours', log_dir='ours', device_ids=device_ids,
-           lastckpt=lastckpt, mae_error=False, use_wandb=False)
+
+for i in range(1, 6):
+    my_model = TransferModel(config=config, checkpoint=checkpoint, num_frames=NUM_FRAME, scales=SCALES, OPEN=False)
+    train_label_dir = f'train_fold_{i}.csv'
+    valid_label_dir = f'valid_fold_{i}.csv'
+    train_dataset = MyData(root_path, train_video_dir, train_label_dir, num_frame=NUM_FRAME)
+    valid_dataset = MyData(root_path, valid_video_dir, valid_label_dir, num_frame=NUM_FRAME)
+    train_loop(NUM_EPOCHS, my_model, train_dataset, valid_dataset, train=True, valid=True,
+            batch_size=BATCH_SIZE, lr=LR, saveckpt=False, ckpt_name='ours', log_dir='ours', device_ids=device_ids,
+           lastckpt=lastckpt, mae_error=False, use_wandb=True, fold_index=i)

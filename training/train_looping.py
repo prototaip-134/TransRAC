@@ -11,12 +11,12 @@ from tools.my_tools import paint_smi_matrixs
 torch.manual_seed(1)  # random seed. We not yet optimization it.
 
 def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, inference=False, batch_size=1, lr=1e-6,
-               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False, use_wandb=False):
+               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False, use_wandb=False, fold_index=0):
     
     # Initialize wandb if use_wandb is True
     if use_wandb:
         import wandb
-        wandb.init(project="repetitive-action-counting", entity="cares", name="TransRAC_init")
+        wandb.init(project="repetitive-action-counting", entity="cares", name="TransRAC_CV" + str(fold_index))
     
     device = torch.device("cuda:" + str(device_ids[0]) if torch.cuda.is_available() else "cpu")
     currEpoch = 0
@@ -171,7 +171,7 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
         if not os.path.exists('checkpoint/{0}/'.format(ckpt_name)):
             os.mkdir('checkpoint/{0}/'.format(ckpt_name))
         if saveckpt:
-            if (epoch < 50 and epoch % 5 == 0) or (epoch > 50 and epoch % 3 == 0):
+            if (epoch > 50 and epoch % 20 == 0):
                 checkpoint = {
                     'epoch': epoch,
                     'state_dict': model.state_dict(),
