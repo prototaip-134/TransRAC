@@ -24,7 +24,7 @@ config = './configs/recognition/swin/swin_tiny_patch244_window877_kinetics400_1k
 checkpoint = './pretrained/swin_tiny_patch244_window877_kinetics400_1k.pth'
 
 # TransRAC trained model checkpoint, we will upload soon.
-lastckpt = './pretrained/transrac_ckpt_pytorch_171.pt'
+lastckpt = './checkpoint/ours_best.pt'
 
 NUM_FRAME = 64
 # multi scales(list). we currently support 1,4,8 scale.

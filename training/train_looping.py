@@ -10,9 +10,75 @@ from tools.my_tools import paint_smi_matrixs
 
 torch.manual_seed(1)  # random seed. We not yet optimization it.
 
+class EarlyStopping:
+    def __init__(self, patience=10, delta=0, verbose=False, path='best.pt', trace_func=print, saveckpt=False):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 10
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                           Default: 0
+            verbose (bool): If True, prints a message for each validation loss improvement.
+                            Default: False
+            path (str): Path for saving the checkpoint model. 
+                        Default: 'checkpoint.pt'
+            trace_func (function): Trace print function.
+                                   Default: print
+        """
+        self.patience = patience
+        self.delta = delta
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.path = path
+        self.trace_func = trace_func
+        self.saveckpt = saveckpt
+
+    def __call__(self, val_loss, model, epoch, train_losses, valid_losses, optimizer):
+
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            if self.saveckpt:
+                self.save_checkpoint(val_loss, model, epoch, train_losses, valid_losses, optimizer)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.verbose:
+                self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            if self.saveckpt:
+                self.save_checkpoint(val_loss, model, epoch, train_losses, valid_losses, optimizer)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model, epoch, train_losses, valid_losses, optimizer):
+        '''Saves model when validation loss decreases.'''
+
+        # TODO: Implement the model saving.
+        if self.verbose:
+            self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+        
+        checkpoint = {
+                    'epoch': epoch,
+                    'state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'trainLosses': train_losses,
+                    'valLosses': valid_losses
+                }
+        torch.save(checkpoint, self.path)
+        self.val_loss_min = val_loss
+
 def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, inference=False, batch_size=1, lr=1e-6,
-               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False, use_wandb=False, fold_index=0):
+               ckpt_name='ckpt', lastckpt=None, saveckpt=False, log_dir='scalar', device_ids=[0], mae_error=False, use_wandb=False, fold_index=0, patience=10):
     
+    # Initialize early stopping
+    early_stopping = EarlyStopping(patience=patience, verbose=True, path=f'checkpoint/{ckpt_name}_best.pt', saveckpt=saveckpt)
+
     # Initialize wandb if use_wandb is True
     if use_wandb:
         import wandb
@@ -151,6 +217,15 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                     validLosses.append(train_loss)
                     validLoss1.append(train_loss1)
 
+                     # Apply early stopping at the end of each validation step
+                    valid_loss_mean = np.mean(validLosses)
+                    early_stopping(valid_loss_mean, model, epoch, trainLosses, validLosses, optimizer)
+
+                    if early_stopping.early_stop:
+                        print("Early stopping triggered")
+                        break  # Break out of the loop if early stopping is triggered
+
+
                     batch_idx += 1
                     pbar.set_postfix({'Epoch': epoch,
                                       'loss_valid': train_loss,
@@ -168,19 +243,7 @@ def train_loop(n_epochs, model, train_set, valid_set, train=True, valid=True, in
                                "valid/MAE": np.mean(validMAE)})
 
         scheduler.step()
-        if not os.path.exists('checkpoint/{0}/'.format(ckpt_name)):
-            os.mkdir('checkpoint/{0}/'.format(ckpt_name))
-        if saveckpt:
-            if (epoch > 50 and epoch % 20 == 0):
-                checkpoint = {
-                    'epoch': epoch,
-                    'state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'trainLosses': trainLosses,
-                    'valLosses': validLosses
-                }
-                torch.save(checkpoint, 'checkpoint/{0}/'.format(ckpt_name) + str(epoch) + '_' + str(round(np.mean(validMAE), 4)) + '.pt')
-
+    
         writer.add_scalars('learning rate', {"learning rate": optimizer.state_dict()['param_groups'][0]['lr']}, epoch)
         writer.add_scalars('epoch_trainMAE', {"epoch_trainMAE": np.mean(trainMAE)}, epoch)
         writer.add_scalars('epoch_trainOBO', {"epoch_trainOBO": np.mean(trainOBO)}, epoch)

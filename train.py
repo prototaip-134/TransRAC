@@ -34,17 +34,15 @@ NUM_FRAME = 64
 # multi scales(list). we currently support 1,4,8 scale.
 SCALES = [1, 4, 8]
 
-NUM_EPOCHS = 150
+NUM_EPOCHS = 300
 LR = 8e-6
 BATCH_SIZE = 32
 
-
-for i in range(1, 6):
-    my_model = TransferModel(config=config, checkpoint=checkpoint, num_frames=NUM_FRAME, scales=SCALES, OPEN=False)
-    train_label_dir = f'train_fold_{i}.csv'
-    valid_label_dir = f'valid_fold_{i}.csv'
-    train_dataset = MyData(root_path, train_video_dir, train_label_dir, num_frame=NUM_FRAME)
-    valid_dataset = MyData(root_path, valid_video_dir, valid_label_dir, num_frame=NUM_FRAME)
-    train_loop(NUM_EPOCHS, my_model, train_dataset, valid_dataset, train=True, valid=True,
-            batch_size=BATCH_SIZE, lr=LR, saveckpt=False, ckpt_name='ours', log_dir='ours', device_ids=device_ids,
-           lastckpt=lastckpt, mae_error=False, use_wandb=True, fold_index=i)
+my_model = TransferModel(config=config, checkpoint=checkpoint, num_frames=NUM_FRAME, scales=SCALES, OPEN=False)
+train_label_dir = f'train.csv'
+valid_label_dir = f'valid.csv'
+train_dataset = MyData(root_path, train_video_dir, train_label_dir, num_frame=NUM_FRAME)
+valid_dataset = MyData(root_path, valid_video_dir, valid_label_dir, num_frame=NUM_FRAME)
+train_loop(NUM_EPOCHS, my_model, train_dataset, valid_dataset, train=True, valid=True,
+        batch_size=BATCH_SIZE, lr=LR, saveckpt=True, ckpt_name='ours', log_dir='ours', device_ids=device_ids,
+        lastckpt=lastckpt, mae_error=False, use_wandb=False, fold_index=0)
